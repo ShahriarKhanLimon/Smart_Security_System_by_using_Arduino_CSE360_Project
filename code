@@ -1,0 +1,86 @@
+#include <SoftwareSerial.h>
+#include <Servo.h>
+
+SoftwareSerial BTSerial(0, 1);
+Servo myservo;
+int irPin = 6;
+int mq2Pin = A0;
+int mq2Val;
+int ledPinRed = 8; // Red LED pin
+int ledPinGreen = 12; // Green LED pin
+int buzzerPin = 7;
+bool servoMoving = false;
+int servoDirection = 1;
+int servoSpeed = 10; // adjust this to change the speed of the servo movement
+int servoPos = 90;
+
+void setup() {
+  BTSerial.begin(9600);
+  myservo.attach(9);
+  pinMode(irPin, INPUT);
+  pinMode(mq2Pin, INPUT);
+  pinMode(ledPinRed, OUTPUT);
+  pinMode(ledPinGreen, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+}
+
+void loop() {
+  if (BTSerial.available()) {
+    int command = BTSerial.read();
+    if (command == '1') {
+      servoMoving = true;
+    } else if (command == '0') {
+      servoMoving = false;
+      servoPos = 90;
+      myservo.write(servoPos);
+    }
+  }
+
+  if (servoMoving) {
+    servoPos += servoSpeed * servoDirection;
+    if (servoPos > 180 || servoPos < 0) {
+      servoDirection *= -1;
+      servoPos += servoSpeed * servoDirection;
+    }
+    myservo.write(servoPos);
+  }
+
+  int irVal = digitalRead(irPin);
+  mq2Val = analogRead(mq2Pin);
+
+  if (mq2Val > 500) {
+    servoMoving = false;
+    BTSerial.println("MQ-2 sensor detected gas!");
+    digitalWrite(ledPinRed, HIGH); // turn on red LED
+    digitalWrite(ledPinGreen, LOW); // turn off green LED
+    digitalWrite(buzzerPin, HIGH);
+    myservo.write(90);
+    while (mq2Val > 500) {
+      mq2Val = analogRead(mq2Pin);
+    }
+    servoMoving = true;
+    BTSerial.println("Now no smoke is there!");        
+    digitalWrite(ledPinRed, LOW); // turn off red LED
+    digitalWrite(ledPinGreen, HIGH); // turn on green LED
+    digitalWrite(buzzerPin, LOW);
+  } else if (irVal == LOW) {
+    servoMoving = false;
+    BTSerial.println("IR sensor detected something!");
+    digitalWrite(ledPinRed, HIGH);
+    digitalWrite(ledPinGreen, LOW);
+    digitalWrite(buzzerPin, HIGH);
+    myservo.write(90);
+    while (irVal == LOW) {
+      irVal = digitalRead(irPin);
+    }
+    servoMoving = true;
+    BTSerial.println("Now nothing is there!");    
+    digitalWrite(ledPinRed, LOW);
+    digitalWrite(ledPinGreen, HIGH);
+    digitalWrite(buzzerPin, LOW);
+  } else {
+    digitalWrite(ledPinRed, LOW);
+    digitalWrite(ledPinGreen, HIGH);
+    digitalWrite(buzzerPin, LOW);
+  }
+}
